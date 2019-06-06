@@ -7,7 +7,22 @@ const APIAI_SESSION_ID = process.env.APIAI_SESSION_ID;
 const express = require('express');
 const app = express();
 
-app.use(express.urlencoded({ extended: true }));
+// var mongojs = require("mongojs");
+const mongoose = require("mongoose");
+
+// Connect to the Mongo DB
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost/goaldb";
+mongoose.connect(MONGODB_URI, {
+  useNewUrlParser: true
+});
+
+// Require all models
+const db = require("./model/Goal");
+
+
+app.use(express.urlencoded({
+  extended: true
+}));
 app.use(express.json());
 
 app.use(express.static(__dirname + '/views')); // html
@@ -25,24 +40,40 @@ app.get('/', (req, res) => {
 });
 
 app.post("/submit", function (req, res) {
-  var comment = req.body.comment
-  console.log(comment)
+  var goal = req.body.comment
 
-  let apiaiReq = apiai.textRequest(comment, {
-    sessionId: APIAI_SESSION_ID
-  });
+  db.create({
+    goal: goal,
+    correct: 0
+    },
+    function (err, inserted) {
+      if (err) {
+        // Log the error if one is encountered during the query
+        console.log(err);
+      } else {
+        // Otherwise, log the inserted data
+        console.log(inserted);
+        console.log(goal)
 
-  apiaiReq.on('response', (response) => {
-    let aiText = response.result;
-    console.log(aiText);
-    res.json(response.result.parameters)
-  });
+        let apiaiReq = apiai.textRequest(goal, {
+          sessionId: APIAI_SESSION_ID
+        });
+      
+        apiaiReq.on('response', (response) => {
+          let aiText = response.result;
+          console.log(aiText);
+          let json = response.result.parameters
+          json.id = inserted._id
+          res.json(response.result.parameters)
+        });
+      
+        apiaiReq.on('error', (error) => {
+          console.log(error);
+        });
+      
+        apiaiReq.end();
+      }
+    });
 
-  apiaiReq.on('error', (error) => {
-    console.log(error);
-  });
 
-  apiaiReq.end();
 })
-
-
